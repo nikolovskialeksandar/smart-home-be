@@ -13,6 +13,7 @@
     "rules": {
         "import/extensions": "off",
         "consistent-return": "off",
-        "func-names": "off"
+        "func-names": "off",
+        "no-use-before-define": "off"
     }
 }

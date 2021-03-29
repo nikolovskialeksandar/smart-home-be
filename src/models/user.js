@@ -5,7 +5,6 @@ import bcrypt from 'bcrypt';
 const userSchema = new mongoose.Schema({
   username: {
     type: String,
-    required: true,
     unique: true,
     trim: true,
   },
@@ -28,13 +27,32 @@ const userSchema = new mongoose.Schema({
       }
     },
   },
+}, {
+  timestamps: true,
 });
 
+// Log in user
+userSchema.statics.findByCredentials = async (email, password) => {
+  const user = await User.findOne({ email });
+  if (!user) {
+    throw new Error('Unable to login');
+  }
+
+  const isMatch = await bcrypt.compare(password, user.password);
+  if (!isMatch) {
+    throw new Error('Unable to login');
+  }
+
+  return user;
+};
+
+// Hash password before saving
 userSchema.pre('save', async function (next) {
   const user = this;
   if (user.isModified('password')) {
     user.password = await bcrypt.hash(user.password, 8);
   }
+
   next();
 });
 
