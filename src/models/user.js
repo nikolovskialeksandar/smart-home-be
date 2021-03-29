@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import validator from 'validator';
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 
 const userSchema = new mongoose.Schema({
   username: {
@@ -27,11 +28,28 @@ const userSchema = new mongoose.Schema({
       }
     },
   },
+  tokens: [{
+    token: {
+      type: String,
+      required: true,
+    },
+  }],
 }, {
   timestamps: true,
 });
 
+// Generate token
+
+userSchema.methods.generateAuthToken = async function () {
+  const user = this;
+  const token = await jwt.sign({ _id: user._id }, process.env.JWT_SECRET);
+  user.tokens.push({ token });
+  await user.save();
+  return token;
+};
+
 // Log in user
+
 userSchema.statics.findByCredentials = async (email, password) => {
   const user = await User.findOne({ email });
   if (!user) {
@@ -47,6 +65,7 @@ userSchema.statics.findByCredentials = async (email, password) => {
 };
 
 // Hash password before saving
+
 userSchema.pre('save', async function (next) {
   const user = this;
   if (user.isModified('password')) {
