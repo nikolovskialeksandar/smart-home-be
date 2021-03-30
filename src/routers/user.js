@@ -59,4 +59,36 @@ router.post('/users/logoutAll', auth, async (req, res) => {
     res.status(500).send();
   }
 });
+
+// Update user
+
+router.patch('/users/me', auth, async (req, res) => {
+  const allowedUpdates = ['username', 'email', 'password'];
+  const updates = Object.keys(req.body);
+  const isValidUpdate = updates.every((update) => allowedUpdates.includes(update));
+  if (!isValidUpdate) {
+    return res.status(400).send('Invalid updates');
+  }
+  try {
+    updates.forEach((update) => {
+      req.user[update] = req.body[update];
+    });
+    await req.user.save();
+    res.send(req.user);
+  } catch {
+    res.status(400).send();
+  }
+});
+
+// Delete user
+
+router.delete('/users/me', auth, async (req, res) => {
+  try {
+    await req.user.remove();
+    res.send(req.user);
+  } catch {
+    res.status(500).send();
+  }
+});
+
 export default router;
