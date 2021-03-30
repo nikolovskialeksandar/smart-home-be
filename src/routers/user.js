@@ -1,5 +1,7 @@
 import express from 'express';
+
 import User from '../models/user.js';
+import auth from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -28,4 +30,33 @@ router.post('/users/login', async (req, res) => {
   }
 });
 
+// Get user profile
+
+router.get('/users/me', auth, async (req, res) => {
+  res.send(req.user);
+});
+
+// Log out current session
+
+router.post('/users/logout', auth, async (req, res) => {
+  try {
+    req.user.tokens = req.user.tokens.filter((token) => token.token !== req.token);
+    await req.user.save();
+    res.send();
+  } catch {
+    res.status(500).send();
+  }
+});
+
+// Log out all sessions
+
+router.post('/users/logoutAll', auth, async (req, res) => {
+  try {
+    req.user.tokens = [];
+    await req.user.save();
+    res.send();
+  } catch {
+    res.status(500).send();
+  }
+});
 export default router;

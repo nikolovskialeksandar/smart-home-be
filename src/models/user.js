@@ -75,6 +75,16 @@ userSchema.pre('save', async function (next) {
   next();
 });
 
+// Get public user profile
+
+userSchema.methods.toJSON = function () {
+  const user = this;
+  const userObject = user.toObject();
+  delete userObject.password;
+  delete userObject.tokens;
+  return userObject;
+};
+
 const User = mongoose.model('User', userSchema);
 
 export default User;
