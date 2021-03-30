@@ -5,6 +5,7 @@ import { connections } from '../services/websocket.js';
 
 const router = new express.Router();
 
+// Get device state
 router.get('/sonoff', async (req, res) => {
   try {
     const sonoffState = await Sonoff.findOne({});
@@ -18,6 +19,7 @@ router.get('/sonoff', async (req, res) => {
   }
 });
 
+// Set device state
 router.patch('/sonoff', async (req, res) => {
   try {
     const sonoffState = await Sonoff.findOne({});
@@ -27,6 +29,7 @@ router.patch('/sonoff', async (req, res) => {
 
     sonoffState.switch = req.body.switch;
     await sonoffState.save();
+
     // Send state to device
     let socketMessage = null;
     if (sonoffState.switch) {
