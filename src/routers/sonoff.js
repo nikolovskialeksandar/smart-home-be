@@ -12,6 +12,7 @@ router.post('/sonoff', auth, async (req, res) => {
   const sonoff = new Sonoff({
     owner: req.user._id,
     state: false,
+    name: req.body.name,
   });
   try {
     await sonoff.save();
@@ -21,13 +22,12 @@ router.post('/sonoff', auth, async (req, res) => {
   }
 });
 
-// Get device state
+// Get device
 
 router.get('/sonoff/:id', auth, async (req, res) => {
-  const _id = req.params.id;
   try {
     const sonoff = await Sonoff.findOne({
-      _id,
+      _id: req.params.id,
       owner: req.user._id,
     });
 
@@ -41,34 +41,76 @@ router.get('/sonoff/:id', auth, async (req, res) => {
   }
 });
 
-// Set device state
+// Get all user devices
+
+router.get('/sonoff', auth, async (req, res) => {
+  try {
+    await req.user.populate({
+      path: 'sonoffDevices',
+    }).execPopulate();
+    res.send(req.user.sonoffDevices);
+  } catch {
+    res.status(500).send();
+  }
+});
+
+// Set device state / update device
 
 router.patch('/sonoff/:id', auth, async (req, res) => {
-  const _id = req.params.id;
+  const allowedUpdates = ['name', 'state'];
+  const updates = Object.keys(req.body);
+  const isValidUpdate = updates.every((update) => allowedUpdates.includes(update));
+  if (!isValidUpdate) {
+    return res.status(400).send('Invalid updates');
+  }
+
   try {
     const sonoff = await Sonoff.findOne({
-      _id,
+      _id: req.params.id,
       owner: req.user._id,
     });
     if (!sonoff) {
       return res.status(404).send();
     }
 
-    sonoff.state = req.body.state;
+    updates.forEach((update) => {
+      sonoff[update] = req.body[update];
+    });
+
     await sonoff.save();
-
+ 
     // Send state to device
-    let socketMessage = null;
-    if (sonoff.state) {
-      socketMessage = 'true';
-    } else {
-      socketMessage = 'false';
-    }
+    if (updates.includes('state')) {
+      let socketMessage = null;
+      if (sonoff.state) {
+        socketMessage = 'true';
+      } else {
+        socketMessage = 'false';
+      }
 
-    connections.forEach((socket) => socket.send(socketMessage));
+      connections.forEach((socket) => socket.send(socketMessage));
+    }
     res.send(sonoff);
   } catch (error) {
     res.status(500).send(error);
+  }
+});
+
+// Delete device
+
+router.delete('/sonoff/:id', auth, async (req, res) => {
+  try {
+    const sonoff = await Sonoff.findOneAndDelete({
+      _id: req.params.id,
+      owner: req.user._id,
+    });
+    if (!sonoff) {
+      return res.status(404).send();
+    }
+
+    res.send(sonoff);
+  } catch {
+    res.status(500).send();
   }
 });
 
