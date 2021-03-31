@@ -38,6 +38,14 @@ const userSchema = new mongoose.Schema({
   timestamps: true,
 });
 
+// Link owned sonoff devices
+
+userSchema.virtual('sonoffDevices', {
+  ref: 'Sonoff',
+  localField: '_id',
+  foreignField: 'owner',
+});
+
 // Generate token
 
 userSchema.methods.generateAuthToken = async function () {
