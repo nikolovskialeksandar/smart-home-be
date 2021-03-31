@@ -23,43 +23,52 @@ router.post('/sonoff', auth, async (req, res) => {
 
 // Get device state
 
-router.get('/sonoff', async (req, res) => {
+router.get('/sonoff/:id', auth, async (req, res) => {
+  const _id = req.params.id;
   try {
-    const sonoffState = await Sonoff.findOne({});
-    if (!sonoffState) {
-      return res.set(404).send();
+    const sonoff = await Sonoff.findOne({
+      _id,
+      owner: req.user._id,
+    });
+
+    if (!sonoff) {
+      return res.status(404).send();
     }
 
-    res.send(sonoffState.switch);
-  } catch (error) {
-    res.set(500).send(error);
+    res.send(sonoff);
+  } catch {
+    res.status(500).send();
   }
 });
 
 // Set device state
 
-router.patch('/sonoff', async (req, res) => {
+router.patch('/sonoff/:id', auth, async (req, res) => {
+  const _id = req.params.id;
   try {
-    const sonoffState = await Sonoff.findOne({});
-    if (!sonoffState) {
-      return res.set(404).send();
+    const sonoff = await Sonoff.findOne({
+      _id,
+      owner: req.user._id,
+    });
+    if (!sonoff) {
+      return res.status(404).send();
     }
 
-    sonoffState.state = req.body.state;
-    await sonoffState.save();
+    sonoff.state = req.body.state;
+    await sonoff.save();
 
     // Send state to device
     let socketMessage = null;
-    if (sonoffState.state) {
+    if (sonoff.state) {
       socketMessage = 'true';
     } else {
       socketMessage = 'false';
     }
 
     connections.forEach((socket) => socket.send(socketMessage));
-    res.send();
+    res.send(sonoff);
   } catch (error) {
-    res.set(500).send(error);
+    res.status(500).send(error);
   }
 });
 
