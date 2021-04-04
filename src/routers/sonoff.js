@@ -2,46 +2,131 @@ import express from 'express';
 
 import Sonoff from '../models/sonoff.js';
 import { connections } from '../services/websocket.js';
+import auth from '../middleware/auth.js';
 
 const router = new express.Router();
 
-// Get device state
-router.get('/sonoff', async (req, res) => {
-  try {
-    const sonoffState = await Sonoff.findOne({});
-    if (!sonoffState) {
-      return res.set(404).send();
-    }
+// Add new device
 
-    res.send(sonoffState.switch);
-  } catch (error) {
-    res.set(500).send(error);
+router.post('/sonoff', auth, async (req, res) => {
+  const sonoff = new Sonoff({
+    owner: req.user._id,
+    state: false,
+    name: req.body.name,
+  });
+  try {
+    const token = await sonoff.generateAuthToken();
+    await sonoff.save();
+    res.status(201).send({ sonoff, token });
+  } catch {
+    res.status(400).send();
   }
 });
 
-// Set device state
-router.patch('/sonoff', async (req, res) => {
+// Get device
+
+router.get('/sonoff/:id', auth, async (req, res) => {
   try {
-    const sonoffState = await Sonoff.findOne({});
-    if (!sonoffState) {
-      return res.set(404).send();
+    const sonoff = await Sonoff.findOne({
+      _id: req.params.id,
+      owner: req.user._id,
+    });
+
+    if (!sonoff) {
+      return res.status(404).send();
     }
 
-    sonoffState.switch = req.body.switch;
-    await sonoffState.save();
+    res.send(sonoff);
+  } catch {
+    res.status(500).send();
+  }
+});
+
+// Get all user devices
+
+router.get('/sonoff', auth, async (req, res) => {
+  try {
+    await req.user.populate({
+      path: 'sonoffDevices',
+    }).execPopulate();
+    res.send(req.user.sonoffDevices);
+  } catch {
+    res.status(500).send();
+  }
+});
+
+// Set device state / update device
+
+router.patch('/sonoff/:id', auth, async (req, res) => {
+  const allowedUpdates = ['name', 'state'];
+  const updates = Object.keys(req.body);
+  const isValidUpdate = updates.every((update) => allowedUpdates.includes(update));
+  if (!isValidUpdate) {
+    return res.status(400).send('Invalid updates');
+  }
+
+  try {
+    const sonoff = await Sonoff.findOne({
+      _id: req.params.id,
+      owner: req.user._id,
+    });
+    if (!sonoff) {
+      return res.status(404).send();
+    }
+
+    updates.forEach((update) => {
+      sonoff[update] = req.body[update];
+    });
+
+    await sonoff.save();
 
     // Send state to device
-    let socketMessage = null;
-    if (sonoffState.switch) {
-      socketMessage = 'true';
-    } else {
-      socketMessage = 'false';
+
+    if (updates.includes('state')) {
+      let socketMessage = null;
+      if (sonoff.state) {
+        socketMessage = 'true';
+      } else {
+        socketMessage = 'false';
+      }
+
+      // Check if device is connected
+
+      let connectedDevice = null;
+      connections.forEach((connection) => {
+        if (connection.id === req.params.id) {
+          connectedDevice = connection;
+        }
+      });
+
+      if (!connectedDevice) {
+        return res.status(404).send('Device not connected');
+      }
+
+      connectedDevice.send(socketMessage);
     }
 
-    connections.forEach((socket) => socket.send(socketMessage));
-    res.send();
+    res.send(sonoff);
   } catch (error) {
-    res.set(500).send(error);
+    res.status(500).send(error);
+  }
+});
+
+// Delete device
+
+router.delete('/sonoff/:id', auth, async (req, res) => {
+  try {
+    const sonoff = await Sonoff.findOneAndDelete({
+      _id: req.params.id,
+      owner: req.user._id,
+    });
+    if (!sonoff) {
+      return res.status(404).send();
+    }
+
+    res.send(sonoff);
+  } catch {
+    res.status(500).send();
   }
 });
 
