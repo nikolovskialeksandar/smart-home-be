@@ -15,8 +15,9 @@ router.post('/sonoff', auth, async (req, res) => {
     name: req.body.name,
   });
   try {
+    const token = await sonoff.generateAuthToken();
     await sonoff.save();
-    res.status(201).send(sonoff);
+    res.status(201).send({ sonoff, token });
   } catch {
     res.status(400).send();
   }
@@ -78,8 +79,9 @@ router.patch('/sonoff/:id', auth, async (req, res) => {
     });
 
     await sonoff.save();
- 
+
     // Send state to device
+
     if (updates.includes('state')) {
       let socketMessage = null;
       if (sonoff.state) {
@@ -88,8 +90,22 @@ router.patch('/sonoff/:id', auth, async (req, res) => {
         socketMessage = 'false';
       }
 
-      connections.forEach((socket) => socket.send(socketMessage));
+      // Check if device is connected
+
+      let connectedDevice = null;
+      connections.forEach((connection) => {
+        if (connection.id === req.params.id) {
+          connectedDevice = connection;
+        }
+      });
+
+      if (!connectedDevice) {
+        return res.status(404).send('Device not connected');
+      }
+
+      connectedDevice.send(socketMessage);
     }
+
     res.send(sonoff);
   } catch (error) {
     res.status(500).send(error);
